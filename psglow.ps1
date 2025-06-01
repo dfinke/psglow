@@ -59,9 +59,42 @@ function Render-Markdown {
     # Split content into lines for processing
     $lines = $Content -split "`n"
     
+    $inCodeBlock = $false
+    $codeFenceMarker = ""
+    
     foreach ($line in $lines) {
-        $renderedLine = Format-MarkdownLine $line
-        Write-Host $renderedLine
+        # Check for code fence start/end
+        if ($line -match '^(```|~~~)(.*)$') {
+            $fenceMarker = $matches[1]
+            $language = $matches[2].Trim()
+            
+            if (-not $inCodeBlock) {
+                # Starting a code block
+                $inCodeBlock = $true
+                $codeFenceMarker = $fenceMarker
+                
+                # Optionally show language label
+                if (-not [string]::IsNullOrWhiteSpace($language)) {
+                    Write-Host "  $($script:AnsiCodes.Dim)# $language$($script:AnsiCodes.Reset)"
+                }
+            } elseif ($fenceMarker -eq $codeFenceMarker) {
+                # Ending the current code block
+                $inCodeBlock = $false
+                $codeFenceMarker = ""
+            } else {
+                # Different fence marker inside code block - treat as content
+                $renderedLine = Format-CodeBlockLine $line
+                Write-Host $renderedLine
+            }
+        } elseif ($inCodeBlock) {
+            # Inside code block - format as code
+            $renderedLine = Format-CodeBlockLine $line
+            Write-Host $renderedLine
+        } else {
+            # Regular markdown processing
+            $renderedLine = Format-MarkdownLine $line
+            Write-Host $renderedLine
+        }
     }
 }
 
@@ -99,6 +132,14 @@ function Format-MarkdownLine {
     
     # Process inline formatting for regular text
     return Format-InlineMarkdown $formattedLine
+}
+
+function Format-CodeBlockLine {
+    param([string]$Line)
+    
+    # Apply indentation and dim color to code block content
+    # Preserve all whitespace and don't process any markdown
+    return "  $($script:AnsiCodes.Dim)$Line$($script:AnsiCodes.Reset)"
 }
 
 function Format-InlineMarkdown {
