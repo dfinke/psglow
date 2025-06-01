@@ -110,10 +110,9 @@ function Format-InlineMarkdown {
     $result = $result -replace '\[([^\]]+)\]\(([^)]+)\)', "$($script:AnsiCodes.Blue)$($script:AnsiCodes.Underline)`$1$($script:AnsiCodes.Reset) ($($script:AnsiCodes.Dim)`$2$($script:AnsiCodes.Reset))"
     
     # Process bold **text** (including cases with nested italic)
-    # This handles **text**, **text with *italic* inside**
     while ($result -match '\*\*([^*]+(?:\*[^*]+\*[^*]*)*)\*\*') {
         $boldText = $matches[1]
-        # Process italic within the bold text
+        # Process italic within the bold text, ensuring proper reset codes
         $processedBoldText = $boldText -replace '\*([^*]+)\*', "$($script:AnsiCodes.Italic)`$1$($script:AnsiCodes.Reset)$($script:AnsiCodes.Bold)"
         $result = $result -replace [regex]::Escape("**$boldText**"), "$($script:AnsiCodes.Bold)$processedBoldText$($script:AnsiCodes.Reset)"
     }
@@ -135,11 +134,8 @@ try {
             Write-Error "File not found: $Path"
         }
     } else {
-        # Handle piped input by reading all input
-        $stdinContent = @()
-        
-        # Read from stdin if available
-        if ([Console]::IsInputRedirected) {
+        # Handle piped input
+        try {
             $reader = [System.IO.StreamReader]::new([Console]::OpenStandardInput())
             $content = $reader.ReadToEnd()
             $reader.Close()
@@ -147,9 +143,10 @@ try {
             if (-not [string]::IsNullOrWhiteSpace($content)) {
                 Render-Markdown $content
             } else {
-                Write-Error "No input content received"
+                Write-Error "No input provided. Use: psglow <file> or pipe content to psglow"
             }
-        } else {
+        }
+        catch {
             Write-Error "No input provided. Use: psglow <file> or pipe content to psglow"
         }
     }

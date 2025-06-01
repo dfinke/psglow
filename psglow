@@ -1,0 +1,6 @@
+#!/bin/bash
+# Simple wrapper script for psglow to work from any directory
+# This makes it easier to call psglow from anywhere
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+pwsh -File "$SCRIPT_DIR/psglow.ps1" "$@"
