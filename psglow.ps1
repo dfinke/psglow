@@ -161,19 +161,28 @@ function Render-Table {
     $allRows = @($headerLine) + $dataLines
     $columnWidths = Calculate-ColumnWidths $allRows
     
+    # Render top border
+    $topBorderParts = @()
+    for ($i = 0; $i -lt $columnWidths.Count; $i++) {
+        $width = $columnWidths[$i]
+        $topBorderParts += "─" * $width
+    }
+    $topBorder = "┌" + ($topBorderParts -join "┬") + "┐"
+    Write-Host $topBorder
+    
     # Render header
     $headerCells = Split-TableCells $headerLine
     $renderedHeader = Render-TableRow $headerCells $columnWidths $alignments $true
     Write-Host $renderedHeader
     
-    # Render divider
-    $dividerParts = @()
+    # Render middle border (separator between header and data)
+    $middleBorderParts = @()
     for ($i = 0; $i -lt $columnWidths.Count; $i++) {
         $width = $columnWidths[$i]
-        $dividerParts += "-" * $width
+        $middleBorderParts += "─" * $width
     }
-    $renderedDivider = $dividerParts -join "|"
-    Write-Host $renderedDivider
+    $middleBorder = "├" + ($middleBorderParts -join "┼") + "┤"
+    Write-Host $middleBorder
     
     # Render data rows
     foreach ($dataLine in $dataLines) {
@@ -181,6 +190,15 @@ function Render-Table {
         $renderedRow = Render-TableRow $dataCells $columnWidths $alignments $false
         Write-Host $renderedRow
     }
+    
+    # Render bottom border
+    $bottomBorderParts = @()
+    for ($i = 0; $i -lt $columnWidths.Count; $i++) {
+        $width = $columnWidths[$i]
+        $bottomBorderParts += "─" * $width
+    }
+    $bottomBorder = "└" + ($bottomBorderParts -join "┴") + "┘"
+    Write-Host $bottomBorder
 }
 
 function Render-TableRow {
@@ -228,7 +246,7 @@ function Render-TableRow {
         $renderedCells += $paddedCell
     }
     
-    return $renderedCells -join "|"
+    return "│" + ($renderedCells -join "│") + "│"
 }
 
 function Render-Markdown {
@@ -352,6 +370,9 @@ function Format-InlineMarkdown {
     
     # Process links [text](url) first
     $result = $result -replace '\[([^\]]+)\]\(([^)]+)\)', "$($script:AnsiCodes.Blue)$($script:AnsiCodes.Underline)`$1$($script:AnsiCodes.Reset) ($($script:AnsiCodes.Dim)`$2$($script:AnsiCodes.Reset))"
+    
+    # Process inline code `code` before other formatting
+    $result = $result -replace '`([^`]+)`', "$($script:AnsiCodes.BrightBlack)$($script:AnsiCodes.Dim)`$1$($script:AnsiCodes.Reset)"
     
     # Process bold **text** (including cases with nested italic)
     while ($result -match '\*\*([^*]+(?:\*[^*]+\*[^*]*)*)\*\*') {
