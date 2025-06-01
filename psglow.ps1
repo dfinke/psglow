@@ -49,6 +49,188 @@ $script:AnsiCodes = @{
     BrightWhite = "`e[97m"
 }
 
+function Test-TableLine {
+    param([string]$Line)
+    
+    # Check if line looks like a table row (starts and ends with |, or is a divider)
+    if ([string]::IsNullOrWhiteSpace($Line)) {
+        return $false
+    }
+    
+    $trimmed = $Line.Trim()
+    return $trimmed -match '^\|.*\|$' -or $trimmed -match '^\|[-:\s|]+\|$'
+}
+
+function Parse-TableAlignment {
+    param([string]$DividerLine)
+    
+    $alignments = @()
+    $cells = Split-TableCells $DividerLine
+    
+    foreach ($cell in $cells) {
+        $trimmed = $cell.Trim()
+        if ($trimmed -match '^:.*:$') {
+            $alignments += 'center'
+        } elseif ($trimmed -match ':$') {
+            $alignments += 'right'
+        } else {
+            $alignments += 'left'
+        }
+    }
+    
+    return $alignments
+}
+
+function Split-TableCells {
+    param([string]$Line)
+    
+    # Remove leading and trailing pipes, then split by |
+    $content = $Line.Trim()
+    if ($content.StartsWith('|')) {
+        $content = $content.Substring(1)
+    }
+    if ($content.EndsWith('|')) {
+        $content = $content.Substring(0, $content.Length - 1)
+    }
+    
+    # Split by | (simple version - will add escape handling later if needed)
+    $cells = $content -split '\|'
+    
+    # Process each cell to trim whitespace
+    $processedCells = @()
+    foreach ($cell in $cells) {
+        $processedCells += $cell.Trim()
+    }
+    
+    return $processedCells
+}
+
+function Calculate-ColumnWidths {
+    param([array]$TableRows)
+    
+    $maxWidths = @()
+    
+    foreach ($row in $TableRows) {
+        $cells = Split-TableCells $row
+        for ($i = 0; $i -lt $cells.Count; $i++) {
+            # Remove ANSI codes for width calculation
+            $cleanCell = $cells[$i] -replace '\x1b\[[0-9;]*m', ''
+            $width = $cleanCell.Length
+            
+            if ($i -ge $maxWidths.Count) {
+                $maxWidths += $width
+            } elseif ($width -gt $maxWidths[$i]) {
+                $maxWidths[$i] = $width
+            }
+        }
+    }
+    
+    return $maxWidths
+}
+
+function Render-Table {
+    param([array]$TableLines)
+    
+    if ($TableLines.Count -lt 2) {
+        # Not a valid table, render as regular lines
+        foreach ($line in $TableLines) {
+            Write-Host $line
+        }
+        return
+    }
+    
+    # Check if second line is a divider
+    $dividerPattern = '^\|[-:\s|]+\|$'
+    if ($TableLines[1].Trim() -notmatch $dividerPattern) {
+        # Not a valid table, render as regular lines
+        foreach ($line in $TableLines) {
+            Write-Host $line
+        }
+        return
+    }
+    
+    # Parse table structure
+    $headerLine = $TableLines[0]
+    $dividerLine = $TableLines[1]
+    $dataLines = $TableLines[2..($TableLines.Count - 1)]
+    
+    # Get alignment information
+    $alignments = Parse-TableAlignment $dividerLine
+    
+    # Calculate column widths
+    $allRows = @($headerLine) + $dataLines
+    $columnWidths = Calculate-ColumnWidths $allRows
+    
+    # Render header
+    $headerCells = Split-TableCells $headerLine
+    $renderedHeader = Render-TableRow $headerCells $columnWidths $alignments $true
+    Write-Host $renderedHeader
+    
+    # Render divider
+    $dividerParts = @()
+    for ($i = 0; $i -lt $columnWidths.Count; $i++) {
+        $width = $columnWidths[$i]
+        $dividerParts += "-" * $width
+    }
+    $renderedDivider = $dividerParts -join "|"
+    Write-Host $renderedDivider
+    
+    # Render data rows
+    foreach ($dataLine in $dataLines) {
+        $dataCells = Split-TableCells $dataLine
+        $renderedRow = Render-TableRow $dataCells $columnWidths $alignments $false
+        Write-Host $renderedRow
+    }
+}
+
+function Render-TableRow {
+    param(
+        [array]$Cells,
+        [array]$ColumnWidths,
+        [array]$Alignments,
+        [bool]$IsHeader
+    )
+    
+    $renderedCells = @()
+    
+    for ($i = 0; $i -lt $Cells.Count; $i++) {
+        $cell = $Cells[$i]
+        $width = if ($i -lt $ColumnWidths.Count) { $ColumnWidths[$i] } else { $cell.Length }
+        $alignment = if ($i -lt $Alignments.Count) { $Alignments[$i] } else { 'left' }
+        
+        # Process inline markdown in cell content
+        $formattedCell = Format-InlineMarkdown $cell
+        
+        # Apply header formatting
+        if ($IsHeader) {
+            $formattedCell = "$($script:AnsiCodes.Cyan)$($script:AnsiCodes.Bold)$formattedCell$($script:AnsiCodes.Reset)"
+        }
+        
+        # Calculate padding for alignment
+        # Remove ANSI codes for length calculation
+        $cleanCell = $formattedCell -replace '\x1b\[[0-9;]*m', ''
+        $padding = [math]::Max(0, $width - $cleanCell.Length)
+        
+        $paddedCell = switch ($alignment) {
+            'center' {
+                $leftPad = [math]::Floor($padding / 2)
+                $rightPad = $padding - $leftPad
+                (" " * $leftPad) + $formattedCell + (" " * $rightPad)
+            }
+            'right' {
+                (" " * $padding) + $formattedCell
+            }
+            default { # 'left'
+                $formattedCell + (" " * $padding)
+            }
+        }
+        
+        $renderedCells += $paddedCell
+    }
+    
+    return $renderedCells -join "|"
+}
+
 function Render-Markdown {
     param([string]$Content)
     
@@ -61,6 +243,8 @@ function Render-Markdown {
     
     $inCodeBlock = $false
     $codeFenceMarker = ""
+    $inTable = $false
+    $tableLines = @()
     
     foreach ($line in $lines) {
         # Check for code fence start/end
@@ -90,11 +274,30 @@ function Render-Markdown {
             # Inside code block - format as code
             $renderedLine = Format-CodeBlockLine $line
             Write-Host $renderedLine
+        } elseif (Test-TableLine $line) {
+            # Table line detected
+            if (-not $inTable) {
+                $inTable = $true
+                $tableLines = @()
+            }
+            $tableLines += $line
         } else {
+            # Check if we were in a table and need to render it
+            if ($inTable) {
+                Render-Table $tableLines
+                $inTable = $false
+                $tableLines = @()
+            }
+            
             # Regular markdown processing
             $renderedLine = Format-MarkdownLine $line
             Write-Host $renderedLine
         }
+    }
+    
+    # Handle table at end of input
+    if ($inTable) {
+        Render-Table $tableLines
     }
 }
 
