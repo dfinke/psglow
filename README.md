@@ -1,3 +1,7 @@
+<p align="center">
+    <img src="assests/psglow.png" alt="alt text" width="120" />
+</p>
+
 # psglow
 
 Terminal Markdown Renderer for PowerShell
@@ -22,6 +26,7 @@ Terminal Markdown Renderer for PowerShell
 ## Usage
 
 ### File Input
+
 ```powershell
 # Render a Markdown file
 psglow README.md
