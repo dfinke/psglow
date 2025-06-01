@@ -15,6 +15,7 @@ Terminal Markdown Renderer for PowerShell
 - **Bullet lists** (*, -, +) - Yellow bullet points
 - **Ordered lists** (1., 2.) - Plain text formatting
 - **Code fences** (``` or ~~~) - Dimmed, indented blocks with language labels
+- **Tables** - Formatted tables with alignment support and bold headers
 - **Nested formatting** - Supports bold with nested italic
 - **Graceful fallback** - Unsupported content passes through unchanged
 
@@ -57,6 +58,12 @@ Here's a [link](https://example.com).
 ```powershell
 Get-Process | Where-Object CPU -gt 100
 ```
+
+### Tables
+| Name | Role | Status |
+|------|:----:|--------|
+| Alice | Developer | Active |
+| Bob | Designer | *Away* |
 ```
 
 ## Installation
