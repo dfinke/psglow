@@ -53,6 +53,7 @@ Here's a [link](https://example.com).
 
 1. First item
 2. Second item
+```
 
 ### Code Block
 ```powershell
@@ -64,7 +65,6 @@ Get-Process | Where-Object CPU -gt 100
 |------|:----:|--------|
 | Alice | Developer | Active |
 | Bob | Designer | *Away* |
-```
 
 ## Installation
 
