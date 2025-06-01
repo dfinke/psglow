@@ -14,6 +14,7 @@ Terminal Markdown Renderer for PowerShell
 - **Links** ([label](url)) - Underlined blue text with dimmed URL in parentheses
 - **Bullet lists** (*, -, +) - Yellow bullet points
 - **Ordered lists** (1., 2.) - Plain text formatting
+- **Code fences** (``` or ~~~) - Dimmed, indented blocks with language labels
 - **Nested formatting** - Supports bold with nested italic
 - **Graceful fallback** - Unsupported content passes through unchanged
 
@@ -51,6 +52,11 @@ Here's a [link](https://example.com).
 
 1. First item
 2. Second item
+
+### Code Block
+```powershell
+Get-Process | Where-Object CPU -gt 100
+```
 ```
 
 ## Installation
