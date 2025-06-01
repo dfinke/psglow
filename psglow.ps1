@@ -47,6 +47,12 @@ $script:AnsiCodes = @{
     BrightMagenta = "`e[95m"
     BrightCyan = "`e[96m"
     BrightWhite = "`e[97m"
+    
+    # Background colors
+    BgDarkRed = "`e[48;5;52m"
+    
+    # Salmon/coral color for parameters
+    Salmon = "`e[38;5;210m"
 }
 
 function Test-TableLine {
@@ -221,7 +227,7 @@ function Render-TableRow {
         
         # Apply header formatting
         if ($IsHeader) {
-            $formattedCell = "$($script:AnsiCodes.Cyan)$($script:AnsiCodes.Bold)$formattedCell$($script:AnsiCodes.Reset)"
+            $formattedCell = "$($script:AnsiCodes.BrightWhite)$formattedCell$($script:AnsiCodes.Reset)"
         }
         
         # Calculate padding for alignment
@@ -261,6 +267,7 @@ function Render-Markdown {
     
     $inCodeBlock = $false
     $codeFenceMarker = ""
+    $codeBlockLanguage = ""
     $inTable = $false
     $tableLines = @()
     
@@ -274,6 +281,7 @@ function Render-Markdown {
                 # Starting a code block
                 $inCodeBlock = $true
                 $codeFenceMarker = $fenceMarker
+                $codeBlockLanguage = $language
                 
                 # Optionally show language label
                 if (-not [string]::IsNullOrWhiteSpace($language)) {
@@ -283,14 +291,15 @@ function Render-Markdown {
                 # Ending the current code block
                 $inCodeBlock = $false
                 $codeFenceMarker = ""
+                $codeBlockLanguage = ""
             } else {
                 # Different fence marker inside code block - treat as content
-                $renderedLine = Format-CodeBlockLine $line
+                $renderedLine = Format-CodeBlockLine $line $codeBlockLanguage
                 Write-Host $renderedLine
             }
         } elseif ($inCodeBlock) {
             # Inside code block - format as code
-            $renderedLine = Format-CodeBlockLine $line
+            $renderedLine = Format-CodeBlockLine $line $codeBlockLanguage
             Write-Host $renderedLine
         } elseif (Test-TableLine $line) {
             # Table line detected
@@ -356,11 +365,33 @@ function Format-MarkdownLine {
 }
 
 function Format-CodeBlockLine {
-    param([string]$Line)
+    param([string]$Line, [string]$Language = "")
     
-    # Apply indentation and dim color to code block content
-    # Preserve all whitespace and don't process any markdown
-    return "  $($script:AnsiCodes.Dim)$Line$($script:AnsiCodes.Reset)"
+    # Apply indentation first
+    $result = "  "
+    
+    # Only apply PowerShell syntax highlighting for PowerShell code blocks
+    if ($Language -eq "powershell" -or $Language -eq "ps1") {
+        # Apply PowerShell syntax highlighting
+        $processedLine = $Line
+        
+        # Highlight PowerShell cmdlets (Get-*, Set-*, New-*, etc.)
+        $processedLine = $processedLine -replace '\b([A-Z][a-z]*-[A-Za-z]+)\b', "$($script:AnsiCodes.Magenta)`$1$($script:AnsiCodes.Reset)"
+        
+        # Highlight pipes
+        $processedLine = $processedLine -replace '\|', "$($script:AnsiCodes.Yellow)|$($script:AnsiCodes.Reset)"
+        
+        # Highlight parameters (-ParameterName)
+        $processedLine = $processedLine -replace '\s(-[A-Za-z]+)\b', " $($script:AnsiCodes.Salmon)`$1$($script:AnsiCodes.Reset)"
+        
+        # Apply dim color to unprocessed text and preserve all whitespace
+        $result += "$($script:AnsiCodes.Dim)$processedLine$($script:AnsiCodes.Reset)"
+    } else {
+        # For non-PowerShell code blocks, just apply dim formatting
+        $result += "$($script:AnsiCodes.Dim)$Line$($script:AnsiCodes.Reset)"
+    }
+    
+    return $result
 }
 
 function Format-InlineMarkdown {
@@ -372,7 +403,7 @@ function Format-InlineMarkdown {
     $result = $result -replace '\[([^\]]+)\]\(([^)]+)\)', "$($script:AnsiCodes.Blue)$($script:AnsiCodes.Underline)`$1$($script:AnsiCodes.Reset) ($($script:AnsiCodes.Dim)`$2$($script:AnsiCodes.Reset))"
     
     # Process inline code `code` before other formatting
-    $result = $result -replace '`([^`]+)`', "$($script:AnsiCodes.BrightBlack)$($script:AnsiCodes.Dim)`$1$($script:AnsiCodes.Reset)"
+    $result = $result -replace '`([^`]+)`', "$($script:AnsiCodes.BgDarkRed)$($script:AnsiCodes.BrightWhite)`$1$($script:AnsiCodes.Reset)"
     
     # Process bold **text** (including cases with nested italic)
     while ($result -match '\*\*([^*]+(?:\*[^*]+\*[^*]*)*)\*\*') {
